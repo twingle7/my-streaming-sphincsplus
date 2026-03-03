@@ -1,0 +1,22 @@
+# Build directory
+build/
+
+# Object files
+*.o
+
+# Executables
+test_sphincs
+test_streaming
+test_streaming_simple
+ramspace
+
+# Editor files
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
