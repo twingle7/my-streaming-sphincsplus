@@ -54,6 +54,31 @@ test_double_pass: test_double_pass.c $(OBJECTS) | $(BUILD_DIR)
 test_compare: test_compare.c $(OBJECTS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_compare.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
 
+#
+# Makes the performance test executable for incremental-double-pass branch
+test_performance_double_pass: test_performance_double_pass.c $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_performance_double_pass.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
+#
+# Makes the original performance test executable for main branch
+test_performance_orig: test_performance_orig.c $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_performance_orig.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
+#
+# Makes the simple verify test executable
+test_simple_verify: test_simple_verify.c $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_simple_verify.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
+#
+# Makes the double-pass verify test executable
+test_double_pass_verify: test_double_pass_verify.c $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_double_pass_verify.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
+#
+# Makes the SHAKE verify test executable
+test_shake_verify: test_shake_verify.c $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_shake_verify.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
 clean:
 	-$(RM) -r $(BUILD_DIR)
 

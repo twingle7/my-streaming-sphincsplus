@@ -1,0 +1,62 @@
+=================================================================
+  Tiny SPHINCS+ Quick Performance Test
+=================================================================
+Number of iterations: 10
+
+========================================
+Testing Parameter Set: sha2_128f_simple
+========================================
+
+Basic Parameters:
+  Hash size (n):         16 bytes
+  FORS trees (k):       33
+  FORS tree height (t): 6
+  Hypertree height (h): 66
+  Merkle levels (d):    22
+  Merkle height:        3
+  Hash function:        SHA2
+
+Size Metrics:
+  Private Key Size:      64 bytes
+  Public Key Size:       32 bytes
+  Signature Size:        17088 bytes
+  Context Buffer Size:   1136 bytes
+
+Buffer Usage Breakdown:
+  Main buffer (TS_MAX_HASH):          32 bytes
+  ADR structure:                      32 bytes
+  Auth path buffer:                   32 bytes
+  FORS stack max:                     416 bytes
+  Merkle stack max:                   256 bytes
+  WOTS digits max:                    67 bytes
+  FORS nodes array:                    70 bytes
+  FORS node stack:                    416 bytes
+
+Key Generation:
+  Key generation time: 3654 us (3.65 ms)
+
+Signing Performance:
+  Message Size |  Total Time (us) |  Avg Time (us) |  Throughput (KB/s)
+  ------------+------------------+----------------+------------------
+            32 |           321386 |       32138.60 |             0.97
+           256 |           321161 |       32116.10 |             7.78
+          1024 |           320922 |       32092.20 |            31.16
+          8192 |           317937 |       31793.70 |           251.62
+
+Verification Performance:
+  Message Size |  Total Time (us) |  Avg Time (us) |  Throughput (KB/s)
+  ------------+------------------+----------------+------------------
+            32 |            18429 |        1842.90 |            16.96
+           256 |            17763 |        1776.30 |           140.74
+          1024 |            17945 |        1794.50 |           557.26
+          8192 |            18223 |        1822.30 |          4390.06
+
+Memory Efficiency Metrics:
+  Context size vs signature:   6.65%
+  Private key vs signature:   0.37%
+  Public key vs signature:    0.19%
+  Total key size vs sig:       0.56%
+
+=================================================================
+  Testing Complete
+=================================================================
