@@ -262,6 +262,23 @@ int main(void) {
                                          private_key, ps, sig_streaming,
                                          &time_streaming);
 
+    /* Create test message for signature verification (before closing file) */
+    unsigned char *message = malloc(TEST_FILE_SIZE);
+    if (!message) {
+        printf("Failed to allocate message for verification\n");
+        fclose(test_file);
+        return 1;
+    }
+
+    /* Re-read file to get message for verification */
+    rewind(test_file);
+    if (fread(message, 1, TEST_FILE_SIZE, test_file) != TEST_FILE_SIZE) {
+        printf("Failed to read file for verification\n");
+        free(message);
+        fclose(test_file);
+        return 1;
+    }
+
     fclose(test_file);
 
     /* Summary */
@@ -291,6 +308,75 @@ int main(void) {
     printf("| Signature Size       | %d bytes                 | %d bytes                 |\n",
            result_traditional, result_streaming);
     printf("+----------------------+--------------------------+--------------------------+\n");
+    printf("\n");
+
+    /* Correctness Check: Compare signatures */
+    printf("=================================================================\n");
+    printf("  Correctness Verification\n");
+    printf("=================================================================\n");
+    printf("\n");
+
+    if (result_traditional != result_streaming) {
+        printf("❌ FAILED: Signature sizes differ!\n");
+        printf("  Traditional: %d bytes\n", result_traditional);
+        printf("  Streaming:   %d bytes\n", result_streaming);
+    } else {
+        printf("Signature sizes match: %d bytes\n", result_traditional);
+
+        int signatures_match = 1;
+        for (size_t i = 0; i < result_traditional; i++) {
+            if (sig_traditional[i] != sig_streaming[i]) {
+                signatures_match = 0;
+                printf("❌ FAILED: Signatures differ at byte %zu\n", i);
+                printf("  Traditional[%zu]: 0x%02x\n", i, sig_traditional[i]);
+                printf("  Streaming[%zu]:   0x%02x\n", i, sig_streaming[i]);
+                break;
+            }
+        }
+
+        if (signatures_match) {
+            printf("✓ PASSED: Signatures are identical!\n");
+            printf("  The streaming implementation produces the same signatures\n");
+            printf("  as the traditional implementation for identical inputs.\n");
+        }
+
+        printf("\n");
+    }
+
+    /* Verify both signatures with public key */
+    printf("=================================================================\n");
+    printf("  Signature Verification\n");
+    printf("=================================================================\n");
+    printf("\n");
+
+    /* Verify traditional signature */
+    struct ts_context verify_ctx_trad;
+    memset(&verify_ctx_trad, 0, sizeof(verify_ctx_trad));
+    ts_init_verify(&verify_ctx_trad, message, TEST_FILE_SIZE, ps, public_key);
+    if (!ts_update_verify(sig_traditional, result_traditional, &verify_ctx_trad)) {
+        printf("Traditional signature verification update failed\n");
+        free(message);
+        return 1;
+    }
+    int verify_traditional = ts_verify(&verify_ctx_trad);
+
+    /* Verify streaming signature */
+    struct ts_context verify_ctx_stream;
+    memset(&verify_ctx_stream, 0, sizeof(verify_ctx_stream));
+    ts_init_verify(&verify_ctx_stream, message, TEST_FILE_SIZE, ps, public_key);
+    if (!ts_update_verify(sig_streaming, result_streaming, &verify_ctx_stream)) {
+        printf("Streaming signature verification update failed\n");
+        free(message);
+        return 1;
+    }
+    int verify_streaming = ts_verify(&verify_ctx_stream);
+
+    free(message);
+
+    printf("Traditional signature verification: %s\n",
+           verify_traditional ? "✓ VALID" : "❌ INVALID");
+    printf("Streaming signature verification:   %s\n",
+           verify_streaming ? "✓ VALID" : "❌ INVALID");
     printf("\n");
 
     printf("Traditional Approach (main branch):\n");

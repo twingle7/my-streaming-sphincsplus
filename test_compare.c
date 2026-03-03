@@ -31,7 +31,7 @@ static void generate_random_message(unsigned char *message, size_t len) {
 }
 
 int main() {
-    const struct ts_parameter_set *ps = &ts_ps_shake_128s_simple;
+    const struct ts_parameter_set *ps = &ts_ps_sha2_128f_simple;
     unsigned char private_key[4 * 32];
     unsigned char public_key[2 * 32];
     unsigned char message[100];

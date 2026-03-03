@@ -201,6 +201,7 @@ void ts_sha2_L1_hash_msg_final( unsigned char *output, size_t len_output,
     /* Now do the outer MGF1 */
     memcpy( &msg_hash[0], sc->buffer, n );  /* R from ctx->buffer */
     memcpy( &msg_hash[n], CONVERT_PUBLIC_KEY_TO_PUB_SEED(public_key, n), n );
+    memcpy( &msg_hash[2*n], inner_hash, 32 );  /* Inner hash */
 
     for (int i=0; len_output; i++) {
         ts_ull_to_bytes(&msg_hash[2*n+32], i, 4);

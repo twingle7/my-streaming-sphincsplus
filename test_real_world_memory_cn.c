@@ -264,6 +264,23 @@ int main(void) {
                                          private_key, ps, sig_streaming,
                                          &time_streaming);
 
+    /* 创建测试消息以验证签名（在关闭文件之前） */
+    unsigned char *message = malloc(TEST_FILE_SIZE);
+    if (!message) {
+        printf("分配验证消息内存失败\n");
+        fclose(test_file);
+        return 1;
+    }
+
+    /* 重新读取文件以获取用于验证的消息 */
+    rewind(test_file);
+    if (fread(message, 1, TEST_FILE_SIZE, test_file) != TEST_FILE_SIZE) {
+        printf("读取验证消息失败\n");
+        free(message);
+        fclose(test_file);
+        return 1;
+    }
+
     fclose(test_file);
 
     /* 总结 */
@@ -293,6 +310,87 @@ int main(void) {
     printf("| 签名大小            | %d 字节                 | %d 字节                 |\n",
            result_traditional, result_streaming);
     printf("+----------------------+--------------------------+--------------------------+\n");
+    printf("\n");
+
+    /* 正确性检查：比较签名 */
+    printf("=================================================================\n");
+    printf("  正确性验证\n");
+    printf("=================================================================\n");
+    printf("\n");
+
+    if (result_traditional != result_streaming) {
+        printf("❌ 失败：签名大小不一致！\n");
+        printf("  传统方法: %d 字节\n", result_traditional);
+        printf("  流式方法:   %d 字节\n", result_streaming);
+    } else {
+        printf("签名大小一致: %d 字节\n", result_traditional);
+
+        /* Print R value (first 16 bytes) for comparison */
+        printf("传统方法签名 R (前 16 字节): ");
+        for (int i = 0; i < 16; i++) {
+            printf("%02x", sig_traditional[i]);
+        }
+        printf("\n");
+
+        printf("流式方法签名 R (前 16 字节):   ");
+        for (int i = 0; i < 16; i++) {
+            printf("%02x", sig_streaming[i]);
+        }
+        printf("\n");
+
+        int signatures_match = 1;
+        for (size_t i = 0; i < result_traditional; i++) {
+            if (sig_traditional[i] != sig_streaming[i]) {
+                signatures_match = 0;
+                printf("❌ 失败：签名在第 %zu 字节处不同\n", i);
+                printf("  传统方法[%zu]: 0x%02x\n", i, sig_traditional[i]);
+                printf("  流式方法[%zu]:   0x%02x\n", i, sig_streaming[i]);
+                break;
+            }
+        }
+
+        if (signatures_match) {
+            printf("✓ 通过：签名完全一致！\n");
+            printf("  流式实现对相同的输入生成与传统实现相同的签名。\n");
+        }
+
+        printf("\n");
+    }
+
+    /* 使用公钥验证两个签名 */
+    printf("=================================================================\n");
+    printf("  签名验证\n");
+    printf("=================================================================\n");
+    printf("\n");
+
+    /* 验证传统方法签名 */
+    struct ts_context verify_ctx_trad;
+    memset(&verify_ctx_trad, 0, sizeof(verify_ctx_trad));
+    ts_init_verify(&verify_ctx_trad, message, TEST_FILE_SIZE, ps, public_key);
+    if (!ts_update_verify(sig_traditional, result_traditional, &verify_ctx_trad)) {
+        printf("传统方法签名验证更新失败\n");
+        free(message);
+        return 1;
+    }
+    int verify_traditional = ts_verify(&verify_ctx_trad);
+
+    /* 验证流式方法签名 */
+    struct ts_context verify_ctx_stream;
+    memset(&verify_ctx_stream, 0, sizeof(verify_ctx_stream));
+    ts_init_verify(&verify_ctx_stream, message, TEST_FILE_SIZE, ps, public_key);
+    if (!ts_update_verify(sig_streaming, result_streaming, &verify_ctx_stream)) {
+        printf("流式方法签名验证更新失败\n");
+        free(message);
+        return 1;
+    }
+    int verify_streaming = ts_verify(&verify_ctx_stream);
+
+    free(message);
+
+    printf("传统方法签名验证: %s\n",
+           verify_traditional ? "✓ 有效" : "❌ 无效");
+    printf("流式方法签名验证:   %s\n",
+           verify_streaming ? "✓ 有效" : "❌ 无效");
     printf("\n");
 
     printf("传统方法（main 分支）：\n");
