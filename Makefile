@@ -37,12 +37,22 @@ OBJECTS = tiny_sphincs.o key_gen.o size.o \
 	  sha2_256f_simple.o sha2_256s_simple.o
 
 TEST_SOURCES = test_sphincs.c test_testvector.c test_sha512.c test_shake.c \
-	       test_verify.c
+	       test_verify.c test_performance.c
 
 #
 # Makes the regression test executable
 test_sphincs: $(TEST_SOURCES) $(OBJECTS) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ $(TEST_SOURCES) $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_sphincs.c test_testvector.c test_sha512.c test_shake.c test_verify.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
+#
+# Makes the performance test executable
+test_performance: $(TEST_SOURCES) $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_performance.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
+#
+# Makes the quick performance test executable
+test_performance_quick: test_performance_quick.c $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_performance_quick.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
 
 clean:
 	-$(RM) -r $(BUILD_DIR)

@@ -8,6 +8,8 @@ build/
 test_sphincs
 test_streaming
 test_streaming_simple
+test_performance
+test_performance_quick
 ramspace
 
 # Editor files
