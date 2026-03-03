@@ -1,0 +1,30 @@
+# Build directory
+build/
+
+# Object files
+*.o
+
+# Executables
+test_sphincs
+test_streaming
+test_streaming_simple
+test_performance
+test_performance_quick
+test_performance_orig
+ramspace
+
+# Performance test results
+results_main.txt
+results_modified.txt
+results_*.txt
+
+# Editor files
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
