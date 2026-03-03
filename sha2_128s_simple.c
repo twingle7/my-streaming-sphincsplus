@@ -15,6 +15,12 @@ const struct ts_parameter_set ts_ps_sha2_128s_simple = {
 
     ts_sha2_L1_prf_msg, /* prf_msg */
     ts_sha2_L1_hash_msg, /* hash_msg */
+    ts_sha2_L1_prf_msg_init,  /* prf_msg_init */
+    ts_sha2_L1_prf_msg_update, /* prf_msg_update */
+    ts_sha2_L1_prf_msg_final,   /* prf_msg_final */
+    ts_sha2_L1_hash_msg_init,  /* hash_msg_init */
+    ts_sha2_L1_hash_msg_update, /* hash_msg_update */
+    ts_sha2_L1_hash_msg_final,   /* hash_msg_final */
     ts_sha2_prf,     /* prf */
     ts_sha2_f_simple, /* f */
     ts_sha2_L1_init_t_simple,  /* init_t */

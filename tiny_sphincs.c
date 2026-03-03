@@ -3,6 +3,7 @@
  * It contains the signer, and much of the common logic shared between
  * the signer, key gen and the verifier
  */
+#include <stdio.h>
 #include <string.h>
 #include "tiny_sphincs.h"
 #include "internal.h"
@@ -324,20 +325,20 @@ void ts_init_sign( struct ts_context *ctx,
     if (ps->compute_prehash) ps->compute_prehash( ctx );
 #endif
 
-    /* Step 1: generate the randomness */
-    unsigned char *randomness = ctx->buffer;  /* We'll place R right into */
-                               /* right into the output buffer */
-                               /* It is the initial part of the signature */
-    {
-        unsigned char opt_buffer[TS_MAX_HASH];
-        if (!random_function || !random_function( opt_buffer, n )) {
-            memcpy( opt_buffer,
-		    CONVERT_PUBLIC_KEY_TO_PUB_SEED( ctx->public_key, n ),
-		    n);
-        }
+/* Step 1: generate the randomness */
+unsigned char *randomness = ctx->buffer;  /* We'll place R right into */
+/* right into the output buffer */
+/* It is the initial part of the signature */
+{
+unsigned char opt_buffer[TS_MAX_HASH];
+if (!random_function || !random_function( opt_buffer, n )) {
+memcpy( opt_buffer,
+CONVERT_PUBLIC_KEY_TO_PUB_SEED( ctx->public_key, n ),
+n);
+}
 
-        ps->prf_msg( randomness, opt_buffer, message, len_message, ctx );
-    }
+ps->prf_msg( randomness, opt_buffer, message, len_message, ctx );
+}
 
     /* Step 2: hash the message */
     unsigned char message_hash[MAX_MESSAGE_HASH];
@@ -539,4 +540,160 @@ unsigned ts_sign( unsigned char *dest, unsigned m,
     }
 
     return orig_m - m;
+}
+
+/*
+ * ========== Double-Pass Incremental Message Signing Implementation ==========
+ */
+
+/*
+ * Initialize a double-pass incremental signing context.
+ * This prepares the context for the first pass (computing R).
+ */
+void ts_init_sign_double_pass( struct ts_context *ctx,
+                               const struct ts_parameter_set *ps,
+                               const unsigned char *private_key,
+                               int (*random_function)(unsigned char *, size_t) ) {
+    unsigned n = ps->n;
+
+    ctx->ps = ps;
+    ctx->public_key = CONVERT_PRIVATE_KEY_TO_PUBLIC( private_key, n );
+
+#if TS_SHA2_OPTIMIZATION
+    if (ps->compute_prehash) ps->compute_prehash( ctx );
+#endif
+
+/* Prepare the optional buffer for PRF_msg */
+unsigned char opt_buffer[TS_MAX_HASH];
+if (!random_function || !random_function( opt_buffer, n )) {
+memcpy( opt_buffer,
+CONVERT_PUBLIC_KEY_TO_PUB_SEED( ctx->public_key, n ),
+n );
+}
+
+/* Initialize Pass 1: computing R via incremental PRF_msg */
+ctx->ps->prf_msg_init( ctx );
+
+/* Add the opt_buffer to the hash state */
+if (ctx->ps->sha2) {
+/* For SHA2, we need to add opt_buffer via the update function */
+SHA256_CTX *sha_ctx = &ctx->small_iter.sha2_L1_simple;
+ts_SHA256_update( sha_ctx, opt_buffer, n );
+} else {
+/* For SHAKE, add opt_buffer to the absorb phase */
+SHAKE256_CTX *shake_ctx = &ctx->small_iter.shake256_simple;
+ts_shake256_inc_absorb( shake_ctx, opt_buffer, n );
+}
+
+    /* Store the random function for later use (not needed for streaming) */
+    ctx->random_function = random_function;
+
+    /* We're in Pass 1 state */
+    ctx->streaming_pass = 1;
+}
+
+/*
+ * Update the PRF_msg computation with the next message chunk.
+ * This is used during Pass 1 to compute R.
+ */
+int ts_update_prf_msg( const unsigned char *chunk, size_t len,
+                       struct ts_context *ctx ) {
+    if (ctx->streaming_pass != 1) {
+        return 0;  /* Not in the right pass */
+    }
+
+    return ctx->ps->prf_msg_update( chunk, len, ctx );
+}
+
+/*
+ * Finalize PRF_msg computation and retrieve R.
+ * After calling this, the random value R is stored in ctx->buffer.
+ */
+void ts_finalize_prf_msg( struct ts_context *ctx ) {
+    /* Complete Pass 1 and get R */
+    ctx->ps->prf_msg_final( ctx->buffer, ctx );
+
+    /* R is now in ctx->buffer, ready for Pass 2 */
+}
+
+/*
+ * Initialize the hash_msg computation for Pass 2.
+ * This prepares the context for incrementally computing the message hash
+ * using the R value from Pass 1.
+ */
+void ts_init_hash_msg( struct ts_context *ctx ) {
+    unsigned n = ctx->ps->n;
+
+    /* Add R to the hash state */
+    if (ctx->ps->sha2) {
+        SHA256_CTX *sha_ctx = &ctx->small_iter.sha2_L1_simple;
+        ts_SHA256_init(sha_ctx);  /* Initialize SHA256 context */
+        ts_SHA256_update( sha_ctx, ctx->buffer, n );      /* R */
+        ts_SHA256_update( sha_ctx,
+                          CONVERT_PUBLIC_KEY_TO_PUB_SEED( ctx->public_key, n ), n );
+        ts_SHA256_update( sha_ctx,
+                          CONVERT_PUBLIC_KEY_TO_ROOT( ctx->public_key, n ), n );
+    } else {
+        SHAKE256_CTX *shake_ctx = &ctx->small_iter.shake256_simple;
+        /* For SHAKE, first add R, then call hash_msg_init which adds PK.seed and PK.root */
+        ts_shake256_inc_init( shake_ctx );
+        ts_shake256_inc_absorb( shake_ctx, ctx->buffer, n );  /* R */
+    }
+
+    /* Initialize Pass 2: computing message hash using R */
+    /* For SHAKE, hash_msg_init will add PK.seed and PK.root */
+    /* For SHA2, hash_msg_init should NOT initialize (already done above) */
+    if (!ctx->ps->sha2) {
+        ctx->ps->hash_msg_init( ctx );
+    }
+
+    /* We're in Pass 2 state */
+    ctx->streaming_pass = 2;
+}
+
+/*
+ * Update the hash_msg computation with the next message chunk.
+ * This is used during Pass 2 to compute the final message hash.
+ */
+int ts_update_hash_msg( const unsigned char *chunk, size_t len,
+                        struct ts_context *ctx ) {
+    if (ctx->streaming_pass != 2) {
+        return 0;  /* Not in the right pass */
+    }
+
+    return ctx->ps->hash_msg_update( chunk, len, ctx );
+}
+
+/*
+ * Finalize hash_msg computation.
+ * This computes the final message hash and prepares the context for
+ * signature generation.
+ */
+void ts_finalize_hash_msg( struct ts_context *ctx ) {
+    unsigned n = ctx->ps->n;
+
+    /* Complete Pass 2 and get the message hash */
+    unsigned char message_hash[MAX_MESSAGE_HASH];
+    ctx->ps->hash_msg_final( message_hash, sizeof message_hash, ctx );
+
+    /* Step 3: convert the hash into fors_tree leaves and position
+     * within the hypertree */
+    ts_convert_message_hash_to_hypertree_position( ctx, message_hash );
+
+    /* The very first output we generate is the randomness value */
+    /* (which is already in ctx->buffer from Pass 1) */
+    ctx->buffer_offset = 0;
+
+    /* And after that, we'll start outputing the FORS trees */
+    ctx->state = ts_fors_leaf;
+    ctx->fors_tree = 0;
+    ctx->merkle_level = 0;
+    ctx->hypertree_level = 0;
+
+    /* And initialize the iterator that'll hash the FORS roots together */
+    ts_set_fors_root_adr(ctx);
+    ctx->ps->init_t( &ctx->big_iter, ctx );
+
+    /* We're ready to stream the signature output using ts_sign() */
+    ctx->streaming_pass = 3;  /* Signature generation phase */
 }

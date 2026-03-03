@@ -8,19 +8,32 @@
 void ts_sha2_L1_prf_msg( unsigned char *output,
 	             const unsigned char *opt_buffer,
 		     const unsigned char *message, size_t len_message,
-	             struct ts_context *ctx);
+		     struct ts_context *ctx);
 void ts_sha2_L35_prf_msg( unsigned char *output,
 	             const unsigned char *opt_buffer,
 		     const unsigned char *message, size_t len_message,
-	             struct ts_context *ctx);
+		     struct ts_context *ctx);
 void ts_sha2_L1_hash_msg( unsigned char *output, size_t len_output,
 		     const unsigned char *randomness,
 		     const unsigned char *message, size_t len_message,
-	             struct ts_context *ctx);
+		     struct ts_context *ctx);
 void ts_sha2_L35_hash_msg( unsigned char *output, size_t len_output,
 		     const unsigned char *randomness,
 		     const unsigned char *message, size_t len_message,
-	             struct ts_context *ctx);
+		     struct ts_context *ctx);
+
+/* Incremental versions for double-pass streaming (SHA2 L1 only) */
+void ts_sha2_L1_prf_msg_init( struct ts_context *ctx );
+int ts_sha2_L1_prf_msg_update( const unsigned char *chunk, size_t len,
+                                struct ts_context *ctx );
+void ts_sha2_L1_prf_msg_final( unsigned char *output, struct ts_context *ctx );
+
+void ts_sha2_L1_hash_msg_init( struct ts_context *ctx );
+int ts_sha2_L1_hash_msg_update( const unsigned char *chunk, size_t len,
+                                 struct ts_context *ctx );
+void ts_sha2_L1_hash_msg_final( unsigned char *output, size_t len_output,
+                                 struct ts_context *ctx );
+
 void ts_sha2_prf( unsigned char *output, struct ts_context *ctx);
 void ts_sha2_f_simple( unsigned char *output,
 	             const unsigned char *inblock,
@@ -37,6 +50,7 @@ void ts_sha2_L35_next_t_simple( union t_iterator *t, const unsigned char *input,
 		     const struct ts_context *ctx );
 void ts_sha2_L35_final_t_simple(unsigned char *output, union t_iterator *t,
 		     const struct ts_context *ctx );
+
 
 struct SHA256_CTX;
 void ts_sha256_init_ctx( struct SHA256_CTX *sha_ctx,

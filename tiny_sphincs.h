@@ -138,6 +138,10 @@ struct ts_context {
                                      /* WOTS heads */
     union t_iterator small_iter;     /* Used for everything else */
 
+    /* Streaming support for double-pass incremental signing */
+    int (*random_function)(unsigned char *, size_t);  /* Random function */
+    unsigned char streaming_pass;    /* 0=none, 1=Pass1(R), 2=Pass2(hash), 3=signature */
+
 #if TS_SUPPORT_SHA2 && TS_SHA2_OPTIMIZATION
     /* These store the SHA2 state after hashing the public seed */
     /* They are optional, but speed up SHA2 processing a lot */
@@ -265,6 +269,100 @@ int ts_update_verify( const unsigned char *sig, unsigned n,
  * signature verifies
  */
 int ts_verify( struct ts_context *ctx );
+
+/*
+ * ========== Double-Pass Incremental Message Signing API ==========
+ *
+ * This API allows signing large messages without buffering them entirely.
+ * The message is processed in two passes:
+ *   Pass 1: Incrementally compute the random value R
+ *   Pass 2: Incrementally compute the message hash using R
+ *
+ * This requires the message to be read twice (e.g., from a file).
+ * For true single-pass signing, see the random-R variant below.
+ */
+
+/*
+ * Initialize a double-pass incremental signing context.
+ * This prepares the context for the first pass (computing R).
+ *
+ * Parameters:
+ *   ctx -         The context structure to initialize
+ *   ps -          Specifies the parameter set
+ *   private_key - The private key to sign with (valid during entire process)
+ *   random_function - Function to generate randomness, or NULL for deterministic
+ *
+ * After calling this, use ts_update_prf_msg() to feed message chunks
+ * for computing R, then ts_finalize_prf_msg() to get R.
+ */
+void ts_init_sign_double_pass( struct ts_context *ctx,
+                               const struct ts_parameter_set *ps,
+                               const unsigned char *private_key,
+                               int (*random_function)(unsigned char *, size_t) );
+
+/*
+ * Update the PRF_msg computation with the next message chunk.
+ * This is used during Pass 1 to compute R.
+ *
+ * Parameters:
+ *   chunk -       Next chunk of the message
+ *   len -         Length of this chunk
+ *   ctx -         The context structure
+ *
+ * Returns 1 on success, 0 on failure
+ */
+int ts_update_prf_msg( const unsigned char *chunk, size_t len,
+                       struct ts_context *ctx );
+
+/*
+ * Finalize PRF_msg computation and retrieve R.
+ * After calling this, the random value R is stored in ctx->buffer.
+ *
+ * Parameters:
+ *   ctx -         The context structure
+ *
+ * After this, call ts_init_hash_msg() to start Pass 2.
+ */
+void ts_finalize_prf_msg( struct ts_context *ctx );
+
+/*
+ * Initialize the hash_msg computation for Pass 2.
+ * This prepares the context for incrementally computing the message hash
+ * using the R value from Pass 1.
+ *
+ * Parameters:
+ *   ctx -         The context structure (must have completed Pass 1)
+ *
+ * After calling this, use ts_update_hash_msg() to feed message chunks
+ * again (second pass), then ts_finalize_hash_msg() to get the message hash.
+ */
+void ts_init_hash_msg( struct ts_context *ctx );
+
+/*
+ * Update the hash_msg computation with the next message chunk.
+ * This is used during Pass 2 to compute the final message hash.
+ *
+ * Parameters:
+ *   chunk -       Next chunk of the message (same data as in Pass 1)
+ *   len -         Length of this chunk
+ *   ctx -         The context structure
+ *
+ * Returns 1 on success, 0 on failure
+ */
+int ts_update_hash_msg( const unsigned char *chunk, size_t len,
+                        struct ts_context *ctx );
+
+/*
+ * Finalize hash_msg computation.
+ * This computes the final message hash and prepares the context for
+ * signature generation.
+ *
+ * Parameters:
+ *   ctx -         The context structure
+ *
+ * After calling this, use ts_sign() to stream the signature output.
+ */
+void ts_finalize_hash_msg( struct ts_context *ctx );
 
 /*
  * The sizes of various things

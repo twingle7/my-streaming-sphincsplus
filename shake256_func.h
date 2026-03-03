@@ -12,6 +12,19 @@ void ts_shake256_hash_msg( unsigned char *output, size_t len_output,
 		     const unsigned char *randomness,
 		     const unsigned char *message, size_t len_message,
 	             struct ts_context *ctx);
+
+/* Incremental versions for double-pass streaming */
+void ts_shake256_prf_msg_init( struct ts_context *ctx );
+int ts_shake256_prf_msg_update( const unsigned char *chunk, size_t len,
+                                 struct ts_context *ctx );
+void ts_shake256_prf_msg_final( unsigned char *output, struct ts_context *ctx );
+
+void ts_shake256_hash_msg_init( struct ts_context *ctx );
+int ts_shake256_hash_msg_update( const unsigned char *chunk, size_t len,
+                                  struct ts_context *ctx );
+void ts_shake256_hash_msg_final( unsigned char *output, size_t len_output,
+                                  struct ts_context *ctx );
+
 void ts_shake256_prf( unsigned char *output, struct ts_context *ctx);
 void ts_shake256_f_simple( unsigned char *output,
 	             const unsigned char *inblock,

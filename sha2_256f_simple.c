@@ -15,6 +15,12 @@ const struct ts_parameter_set ts_ps_sha2_256f_simple = {
 
     ts_sha2_L35_prf_msg, /* prf_msg */
     ts_sha2_L35_hash_msg, /* hash_msg */
+    0,  /* prf_msg_init - not implemented for L3/L5 */
+    0, /* prf_msg_update - not implemented for L3/L5 */
+    0,   /* prf_msg_final - not implemented for L3/L5 */
+    0,  /* hash_msg_init - not implemented for L3/L5 */
+    0, /* hash_msg_update - not implemented for L3/L5 */
+    0,   /* hash_msg_final - not implemented for L3/L5 */
     ts_sha2_prf,     /* prf */
     ts_sha2_f_simple, /* f */
     ts_sha2_L35_init_t_simple,  /* init_t */

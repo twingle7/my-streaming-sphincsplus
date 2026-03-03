@@ -35,6 +35,20 @@ struct ts_parameter_set {
 		     const unsigned char *randomness,
 		     const unsigned char *message, size_t len_message,
 	             struct ts_context *ctx);
+
+    /* Incremental versions of prf_msg for double-pass streaming */
+    void (*prf_msg_init)( struct ts_context *ctx );
+    int (*prf_msg_update)( const unsigned char *chunk, size_t len,
+                          struct ts_context *ctx );
+    void (*prf_msg_final)( unsigned char *output, struct ts_context *ctx );
+
+    /* Incremental versions of hash_msg for double-pass streaming */
+    void (*hash_msg_init)( struct ts_context *ctx );
+    int (*hash_msg_update)( const unsigned char *chunk, size_t len,
+                           struct ts_context *ctx );
+    void (*hash_msg_final)( unsigned char *output, size_t len_output,
+                           struct ts_context *ctx );
+
     void (*prf)( unsigned char *output, struct ts_context *ctx);
     void (*f)( unsigned char *output,
 	             const unsigned char *inblock,

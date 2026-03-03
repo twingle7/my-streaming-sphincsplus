@@ -3,6 +3,7 @@
  * implementation
  */
 #include <string.h>
+#include <stdio.h>
 #include "tiny_sphincs.h"
 #include "internal.h"
 
@@ -109,8 +110,10 @@ int ts_update_verify( const unsigned char *sig, unsigned m,
     }
 
     unsigned n = ctx->ps->n;
+    int iteration = 0;
     for (;;) {
-	unsigned buffer_offset = ctx->buffer_offset;
+        iteration++;
+        unsigned buffer_offset = ctx->buffer_offset;
 	unsigned remain = n - buffer_offset;
 	if (remain > m) remain = m;
 	memcpy( &ctx->buffer[buffer_offset], sig, remain );
@@ -130,24 +133,24 @@ int ts_update_verify( const unsigned char *sig, unsigned m,
 	    /* buffer has the 'R' value; use it to hash the message */
 	    /* We reuse the fors stack space to hold the expanded */
 	    /* hashed message.  The stack space is larger than we need */
-            ctx->ps->hash_msg( ctx->x.fors.stack, MAX_MESSAGE_HASH,
+	    ctx->ps->hash_msg( ctx->x.fors.stack, MAX_MESSAGE_HASH,
 			  ctx->buffer,
-	        	  ctx->x.verify.message, ctx->x.verify.len_message,
+		 	  ctx->x.verify.message, ctx->x.verify.len_message,
 			  ctx );
-            /* Convert the hash into fors_tree leaves and position */
-            /* within the hypertree */
-            ts_convert_message_hash_to_hypertree_position( ctx,
-			                                ctx->x.fors.stack );
-            /* And after that, we'll start inputing the FORS trees */
-            ctx->state = ts_verify_fors_leaf;
-            ctx->fors_tree = 0;
-            ctx->merkle_level = 0;
-            ctx->hypertree_level = 0;
+	    /* Convert the hash into fors_tree leaves and position */
+	    /* within the hypertree */
+	    ts_convert_message_hash_to_hypertree_position( ctx,
+						    ctx->x.fors.stack );
+	    /* And after that, we'll start inputing the FORS trees */
+	    ctx->state = ts_verify_fors_leaf;
+	    ctx->fors_tree = 0;
+	    ctx->merkle_level = 0;
+	    ctx->hypertree_level = 0;
 
-            /* And initialize the iterator that'll hash the FORS roots */
+	    /* And initialize the iterator that'll hash the FORS roots */
 	    /* together */
-            ts_set_fors_root_adr(ctx);
-            ctx->ps->init_t( &ctx->big_iter, ctx );
+	    ts_set_fors_root_adr(ctx);
+	    ctx->ps->init_t( &ctx->big_iter, ctx );
 	    break;
 	case ts_verify_fors_leaf:     /* We have a FORS leaf */
 	    ctx->auth_path_node = ctx->x.fors.fors_node[ctx->fors_tree];
@@ -212,9 +215,9 @@ int ts_update_verify( const unsigned char *sig, unsigned m,
 		ctx->tree_address >>= ctx->ps->merkle_h;
 		set_up_wots_verify_signature(ctx, next_leaf);
 	    } else {
-                /* We're at the top of the hypertree - did it work? */
+		/* We're at the top of the hypertree - did it work? */
 		if (m == 0 && 0 == my_memcmp(CONVERT_PUBLIC_KEY_TO_ROOT(
-						     ctx->public_key,n),
+				     ctx->public_key,n),
 				ctx->auth_path_buffer, n )) {
 		    /* Yup, the signature checks out */
 		    ctx->state = ts_verify_success;

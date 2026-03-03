@@ -48,6 +48,69 @@ void ts_sha2_L1_prf_msg( unsigned char *output,
     ts_SHA256_final_trunc( output, ctx, n );
 }
 
+/*
+ * ========== Incremental versions of prf_msg for double-pass streaming ==========
+ */
+
+/*
+ * Initialize the incremental PRF_msg computation.
+ * This sets up the HMAC-SHA256 state for the inner hash.
+ */
+void ts_sha2_L1_prf_msg_init( struct ts_context *sc ) {
+    unsigned n = sc->ps->n;
+    const unsigned char *public_key = sc->public_key;
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+    unsigned char block[sha256_block_size];
+
+    /* Initialize inner hash */
+    ts_SHA256_init( ctx );
+    for (unsigned i=0; i<n; i++) {
+	block[i] = 0x36 ^ CONVERT_PUBLIC_KEY_TO_PRF(public_key, n)[i];
+    }
+    memset( &block[n], 0x36, sha256_block_size-n );
+    ts_SHA256_update( ctx, block, sha256_block_size );
+
+    /* Note: opt_buffer should be added via a separate update call
+     * (handled in tiny_sphincs.c), so we don't add it here.
+     */
+}
+
+/*
+ * Update the incremental PRF_msg computation with a message chunk.
+ * This is called during Pass 1 for each chunk of the message.
+ */
+int ts_sha2_L1_prf_msg_update( const unsigned char *chunk, size_t len,
+                                 struct ts_context *sc ) {
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+    ts_SHA256_update( ctx, chunk, len );
+    return 1;
+}
+
+/*
+ * Finalize the incremental PRF_msg computation and output R.
+ * This completes the HMAC computation and returns the random value.
+ */
+void ts_sha2_L1_prf_msg_final( unsigned char *output, struct ts_context *sc ) {
+    unsigned n = sc->ps->n;
+    const unsigned char *public_key = sc->public_key;
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+    unsigned char block[sha256_block_size];
+    unsigned char hash_output[32];
+
+    /* Finalize inner hash */
+    ts_SHA256_final( hash_output, ctx );
+
+    /* Do the outer hash */
+    ts_SHA256_init( ctx );
+    for (unsigned i=0; i<n; i++) {
+	block[i] = 0x5c ^ CONVERT_PUBLIC_KEY_TO_PRF(public_key, n)[i];
+    }
+    memset( &block[n], 0x5c, sha256_block_size-n );
+    ts_SHA256_update( ctx, block, sha256_block_size );
+    ts_SHA256_update( ctx, hash_output, 32 );
+    ts_SHA256_final_trunc( output, ctx, n );
+}
+
 void ts_sha2_L1_hash_msg( unsigned char *output, size_t len_output,
 		     const unsigned char *randomness,
 		     const unsigned char *message, size_t len_message,
@@ -77,6 +140,73 @@ void ts_sha2_L1_hash_msg( unsigned char *output, size_t len_output,
 	    /* len_output might not be a multiple of 4 (and we're not */
 	    /* actually on the critical path for stack space, so it's */
 	    /* not that big of an issue) */
+	unsigned char buffer[32];
+	ts_SHA256_final( buffer, ctx );
+	unsigned bytes;
+        if (len_output >= 32) {
+	    bytes = 32;
+	} else {
+            bytes = len_output;
+	}
+	memcpy( output, buffer, bytes );
+	output += bytes;
+	len_output -= bytes;
+    }
+}
+
+/*
+ * ========== Incremental versions of hash_msg for double-pass streaming ==========
+ */
+
+/*
+ * Initialize the incremental hash_msg computation.
+ * This sets up the SHA256 state for hashing R || PK.seed || PK.root || message
+ */
+void ts_sha2_L1_hash_msg_init( struct ts_context *sc ) {
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+
+    /* Note: The randomness (R) should be added before calling this
+     * (handled in tiny_sphincs.c via ts_SHA256_update)
+     */
+
+    ts_SHA256_init( ctx );
+}
+
+/*
+ * Update the incremental hash_msg computation with a message chunk.
+ * This is called during Pass 2 for each chunk of the message.
+ */
+int ts_sha2_L1_hash_msg_update( const unsigned char *chunk, size_t len,
+                                 struct ts_context *sc ) {
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+    ts_SHA256_update( ctx, chunk, len );
+    return 1;
+}
+
+/*
+ * Finalize the incremental hash_msg computation and output the message hash.
+ * This completes the MGF1 construction.
+ */
+void ts_sha2_L1_hash_msg_final( unsigned char *output, size_t len_output,
+                                 struct ts_context *sc ) {
+    unsigned n = sc->ps->n;
+    const unsigned char *public_key = sc->public_key;
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+    unsigned char msg_hash[2*TS_MAX_HASH + 32 + 4];
+    unsigned char inner_hash[32];
+
+    /* Finalize the inner hash (R || PK.seed || PK.root || m) */
+    ts_SHA256_final( inner_hash, ctx );
+
+    /* Now do the outer MGF1 */
+    memcpy( &msg_hash[0], sc->buffer, n );  /* R from ctx->buffer */
+    memcpy( &msg_hash[n], CONVERT_PUBLIC_KEY_TO_PUB_SEED(public_key, n), n );
+
+    for (int i=0; len_output; i++) {
+        ts_ull_to_bytes(&msg_hash[2*n+32], i, 4);
+        ts_SHA256_init( ctx );
+        ts_SHA256_update( ctx, msg_hash, 2*n+32+4 );
+
 	unsigned char buffer[32];
 	ts_SHA256_final( buffer, ctx );
 	unsigned bytes;
