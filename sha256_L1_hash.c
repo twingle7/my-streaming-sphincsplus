@@ -91,4 +91,64 @@ void ts_sha2_L1_hash_msg( unsigned char *output, size_t len_output,
     }
 }
 
+/*
+ * Stream version: Initialize message hash computation
+ */
+void ts_sha2_L1_hash_msg_init( struct ts_context *sc,
+			const unsigned char *randomness ) {
+    unsigned n = sc->ps->n;
+    const unsigned char *public_key = sc->public_key;
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+    
+    ts_SHA256_init( ctx );
+    ts_SHA256_update( ctx, randomness, n );
+    ts_SHA256_update( ctx, CONVERT_PUBLIC_KEY_TO_PUB_SEED(public_key, n), n );
+    ts_SHA256_update( ctx, CONVERT_PUBLIC_KEY_TO_ROOT(public_key, n), n );
+}
+
+/*
+ * Stream version: Update message hash with a chunk
+ */
+void ts_sha2_L1_hash_msg_update( struct ts_context *sc,
+			const unsigned char *message_chunk, size_t len_chunk ) {
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+    ts_SHA256_update( ctx, message_chunk, len_chunk );
+}
+
+/*
+ * Stream version: Finalize message hash computation
+ */
+void ts_sha2_L1_hash_msg_finalize( unsigned char *output, size_t len_output,
+			struct ts_context *sc ) {
+    unsigned n = sc->ps->n;
+    const unsigned char *public_key = sc->public_key;
+    SHA256_CTX *ctx = &sc->small_iter.sha2_L1_simple;
+    unsigned char msg_hash[2*TS_MAX_HASH + 32 + 4];
+    
+    /* Finalize the inner hash */
+    ts_SHA256_final( &msg_hash[2*n], ctx );
+
+    /* Now do the outer MGF1 */
+    memcpy( &msg_hash[0], &sc->buffer[0], n );  /* R is in ctx->buffer */
+    memcpy( &msg_hash[n], CONVERT_PUBLIC_KEY_TO_PUB_SEED(public_key, n), n );
+
+    for (int i=0; len_output; i++) {
+        ts_ull_to_bytes(&msg_hash[2*n+32], i, 4);
+        ts_SHA256_init( ctx );
+        ts_SHA256_update( ctx, msg_hash, 2*n+32+4 );
+
+	unsigned char buffer[32];
+	ts_SHA256_final( buffer, ctx );
+	unsigned bytes;
+        if (len_output >= 32) {
+	    bytes = 32;
+	} else {
+            bytes = len_output;
+	}
+	memcpy( output, buffer, bytes );
+	output += bytes;
+	len_output -= bytes;
+    }
+}
+
 #endif

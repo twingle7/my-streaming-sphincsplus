@@ -35,6 +35,12 @@ struct ts_parameter_set {
 		     const unsigned char *randomness,
 		     const unsigned char *message, size_t len_message,
 	             struct ts_context *ctx);
+    void (*hash_msg_init)( struct ts_context *ctx,
+			const unsigned char *randomness );
+    void (*hash_msg_update)( struct ts_context *ctx,
+			const unsigned char *message_chunk, size_t len_chunk );
+    void (*hash_msg_finalize)( unsigned char *output, size_t len_output,
+			struct ts_context *ctx );
     void (*prf)( unsigned char *output, struct ts_context *ctx);
     void (*f)( unsigned char *output,
 	             const unsigned char *inblock,

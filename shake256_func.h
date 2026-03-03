@@ -12,6 +12,12 @@ void ts_shake256_hash_msg( unsigned char *output, size_t len_output,
 		     const unsigned char *randomness,
 		     const unsigned char *message, size_t len_message,
 	             struct ts_context *ctx);
+void ts_shake256_hash_msg_init( struct ts_context *ctx,
+			const unsigned char *randomness );
+void ts_shake256_hash_msg_update( struct ts_context *ctx,
+			const unsigned char *message_chunk, size_t len_chunk );
+void ts_shake256_hash_msg_finalize( unsigned char *output, size_t len_output,
+			struct ts_context *ctx );
 void ts_shake256_prf( unsigned char *output, struct ts_context *ctx);
 void ts_shake256_f_simple( unsigned char *output,
 	             const unsigned char *inblock,

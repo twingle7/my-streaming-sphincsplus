@@ -58,6 +58,44 @@ void ts_shake256_hash_msg( unsigned char *output, size_t len_output,
 }
 
 /*
+ * Stream version: Initialize message hash computation
+ */
+void ts_shake256_hash_msg_init( struct ts_context *sc,
+			const unsigned char *randomness ) {
+    int n = sc->ps->n;
+    const unsigned char *public_key = sc->public_key;
+    SHAKE256_CTX *ctx = &sc->small_iter.shake256_simple;
+    const unsigned char *pk_seed = CONVERT_PUBLIC_KEY_TO_PUB_SEED(public_key, n);
+    const unsigned char *pk_root = CONVERT_PUBLIC_KEY_TO_ROOT(public_key, n);
+
+    ts_shake256_inc_init(ctx);
+
+    ts_shake256_inc_absorb(ctx, randomness, n);
+    ts_shake256_inc_absorb(ctx, pk_seed, n);
+    ts_shake256_inc_absorb(ctx, pk_root, n);
+}
+
+/*
+ * Stream version: Update message hash with a chunk
+ */
+void ts_shake256_hash_msg_update( struct ts_context *sc,
+			const unsigned char *message_chunk, size_t len_chunk ) {
+    SHAKE256_CTX *ctx = &sc->small_iter.shake256_simple;
+    ts_shake256_inc_absorb(ctx, message_chunk, len_chunk);
+}
+
+/*
+ * Stream version: Finalize message hash computation
+ */
+void ts_shake256_hash_msg_finalize( unsigned char *output, size_t len_output,
+			struct ts_context *sc ) {
+    SHAKE256_CTX *ctx = &sc->small_iter.shake256_simple;
+    
+    ts_shake256_inc_finalize(ctx);
+    ts_shake256_inc_squeeze(output, len_output, ctx);
+}
+
+/*
  * This computes the PRF function for SHAKE parameter sets
  */
 void ts_shake256_prf( unsigned char *output,

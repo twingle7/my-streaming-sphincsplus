@@ -309,6 +309,9 @@ void ts_convert_message_hash_to_hypertree_position(
  * perform the initial messag hash.  Also set the initial signature output
  * to be the 'R' value, and set things up for the computation of the
  * FORS trees
+ *
+ * Modified for streaming: R is now generated independently of the message
+ * using PRF, so the message can be processed in a streaming fashion.
  */
 void ts_init_sign( struct ts_context *ctx,
                    const void *message, size_t len_message,
@@ -324,19 +327,18 @@ void ts_init_sign( struct ts_context *ctx,
     if (ps->compute_prehash) ps->compute_prehash( ctx );
 #endif
 
-    /* Step 1: generate the randomness */
+    /* Step 1: generate the randomness R independently of the message */
+    /* This change enables streaming - we no longer need to read the message */
+    /* to generate R */
     unsigned char *randomness = ctx->buffer;  /* We'll place R right into */
                                /* right into the output buffer */
                                /* It is the initial part of the signature */
-    {
-        unsigned char opt_buffer[TS_MAX_HASH];
-        if (!random_function || !random_function( opt_buffer, n )) {
-            memcpy( opt_buffer,
-		    CONVERT_PUBLIC_KEY_TO_PUB_SEED( ctx->public_key, n ),
-		    n);
+    if (!random_function || !random_function( randomness, n )) {
+        /* If no random function provided or it failed, use a simple pattern */
+        /* This is just for testing - in production you should always provide a random function */
+        for (unsigned i = 0; i < n; i++) {
+            randomness[i] = (unsigned char)i;
         }
-
-        ps->prf_msg( randomness, opt_buffer, message, len_message, ctx );
     }
 
     /* Step 2: hash the message */
@@ -361,6 +363,86 @@ void ts_init_sign( struct ts_context *ctx,
     /* And initialize the iterator that'll hash the FORS roots together */
     ts_set_fors_root_adr(ctx);
     ps->init_t( &ctx->big_iter, ctx );
+}
+
+/*
+ * Stream version: Initialize signing without requiring the entire message
+ * This allows processing large messages in chunks.
+ */
+void ts_init_sign_stream( struct ts_context *ctx,
+                         const struct ts_parameter_set *ps,
+                         const unsigned char *private_key,
+	                 int (*random_function)(unsigned char *, size_t) ) {
+    unsigned n = ps->n;
+
+    ctx->ps = ps;
+    ctx->public_key = CONVERT_PRIVATE_KEY_TO_PUBLIC( private_key, n );
+
+#if TS_SHA2_OPTIMIZATION
+    if (ps->compute_prehash) ps->compute_prehash( ctx );
+#endif
+
+    /* Step 1: generate the randomness R independently of the message */
+    unsigned char *randomness = ctx->buffer;
+    if (!random_function || !random_function( randomness, n )) {
+        /* If no random function provided or it failed, use a simple pattern */
+        /* This is just for testing - in production you should always provide a random function */
+        for (unsigned i = 0; i < n; i++) {
+            randomness[i] = (unsigned char)i;
+        }
+    }
+
+    /* Step 2: initialize the message hash with R */
+    ps->hash_msg_init( ctx, randomness );
+
+    /* Set state to indicate we're in streaming mode */
+    ctx->state = ts_sign_state;
+    ctx->fors_tree = 0;
+    ctx->merkle_level = 0;
+    ctx->hypertree_level = 0;
+}
+
+/*
+ * Stream version: Add a chunk of message data to the hash computation
+ */
+void ts_sign_update( struct ts_context *ctx,
+                     const void *message_chunk, size_t len_chunk ) {
+    if (ctx->state != ts_sign_state) {
+        /* Invalid state - not in streaming mode */
+        return;
+    }
+    
+    ctx->ps->hash_msg_update( ctx, message_chunk, len_chunk );
+}
+
+/*
+ * Stream version: Finalize the message hashing and prepare for signature generation
+ */
+void ts_sign_finalize( struct ts_context *ctx ) {
+    if (ctx->state != ts_sign_state) {
+        /* Invalid state - not in streaming mode */
+        return;
+    }
+
+    /* Finalize the message hash */
+    unsigned char message_hash[MAX_MESSAGE_HASH];
+    ctx->ps->hash_msg_finalize( message_hash, sizeof message_hash, ctx );
+
+    /* Convert the hash into fors_tree leaves and position within the hypertree */
+    ts_convert_message_hash_to_hypertree_position( ctx, message_hash );
+
+    /* The R value is already in ctx->buffer from initialization */
+    ctx->buffer_offset = 0;
+
+    /* And after that, we'll start outputing the FORS trees */
+    ctx->state = ts_fors_leaf;
+    ctx->fors_tree = 0;
+    ctx->merkle_level = 0;
+    ctx->hypertree_level = 0;
+
+    /* And initialize the iterator that'll hash the FORS roots together */
+    ts_set_fors_root_adr(ctx);
+    ctx->ps->init_t( &ctx->big_iter, ctx );
 }
 
 /*

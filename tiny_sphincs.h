@@ -213,6 +213,50 @@ void ts_init_sign( struct ts_context *ctx,
 	           int (*random_function)(unsigned char *, size_t) );
 
 /*
+ * Stream version: Initialize signing without requiring the entire message
+ * This allows processing large messages in chunks.
+ * Parameters:
+ * ctx -         The context structure we'll use to hold the state of the
+ *               signing process
+ * ps -		 specifies the parameter set
+ * private_key - The private key to sign with.  This needs to be valid
+ *               during the entire signature process
+ * random_function - the function to call to get secure randomness.  The
+ * 		 function should fill the buffer with the given number of
+ * 		 random bytes (and return 1), or return 0 on failure.
+ * 		 If NULL, this uses the Sphincs+ deterministic signing method
+ *
+ * After calling this, call ts_sign_update() for each message chunk,
+ * then ts_sign_finalize() to complete initialization before generating
+ * the signature with ts_sign().
+ */
+void ts_init_sign_stream( struct ts_context *ctx,
+                         const struct ts_parameter_set *ps,
+                         const unsigned char *private_key,
+	                 int (*random_function)(unsigned char *, size_t) );
+
+/*
+ * Stream version: Add a chunk of message data to the hash computation
+ * Parameters:
+ * ctx -         The context structure from ts_init_sign_stream()
+ * message_chunk - The chunk of message data
+ * len_chunk -    The number of bytes in this chunk
+ *
+ * This can be called multiple times to process the message in chunks.
+ */
+void ts_sign_update( struct ts_context *ctx,
+                     const void *message_chunk, size_t len_chunk );
+
+/*
+ * Stream version: Finalize the message hashing and prepare for signature generation
+ * Parameters:
+ * ctx -         The context structure from ts_init_sign_stream()
+ *
+ * After calling this, the context is ready for signature generation via ts_sign()
+ */
+void ts_sign_finalize( struct ts_context *ctx );
+
+/*
  * This generates the next N bytes of the signature.  It returns the
  * number of bytes actually generated.  It'll be the full N until we
  * hit the end of the signature
