@@ -79,6 +79,16 @@ test_double_pass_verify: test_double_pass_verify.c $(OBJECTS) | $(BUILD_DIR)
 test_shake_verify: test_shake_verify.c $(OBJECTS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_shake_verify.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
 
+#
+# Makes the memory benchmark test executable
+test_memory_benchmark: test_memory_benchmark.c $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_memory_benchmark.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
+#
+# Makes the real-world memory test executable
+test_real_world_memory: test_real_world_memory.c $(OBJECTS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DFLAGS) -o $(BUILD_DIR)/$@ test_real_world_memory.c $(addprefix $(BUILD_DIR)/,$(OBJECTS))
+
 clean:
 	-$(RM) -r $(BUILD_DIR)
 
